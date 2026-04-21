@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ORKTRA">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0E4759" />
+      <stop offset="100%" stop-color="#26788C" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="url(#g)" />
+  <path
+    d="M20 20h12c8 0 12 4 12 12s-4 12-12 12H20V20zm10 8h-2v8h2c3 0 5-1 5-4s-2-4-5-4z"
+    fill="#fff"
+  />
+</svg>

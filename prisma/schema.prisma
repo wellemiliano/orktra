@@ -1,0 +1,778 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PlatformRole {
+  USER
+  SUPER_ADMIN_PLATFORM
+}
+
+enum TenantRoleCode {
+  ADMIN_EMPRESA
+  GESTOR_UNIDADE
+  FINANCEIRO
+  FISCAL
+  OPERACOES
+  AUDITOR
+}
+
+enum ModuleKey {
+  COMPANIES
+  UNITS
+  USERS
+  SUPPLIERS
+  COST_CENTERS
+  PRODUCTS
+  WAREHOUSES
+  OPERATIONAL_CONTRACTS
+  PATRIMONIAL_CONTRACTS
+  PAYABLES
+  FISCAL_DOCUMENTS
+  STOCK
+  MEASUREMENTS
+  APPROVALS
+  AUDIT_LOGS
+  INTEGRATIONS
+  CUSTOM_FIELDS
+  BRANDING
+  MODULE_CONFIGURATIONS
+  STATUS_CONFIGURATIONS
+  FORM_LAYOUTS
+  DASHBOARDS
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  RETURN
+  SYNC
+  CONFIG_CHANGE
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  TERMINATED
+}
+
+enum RecurrencePeriod {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  CUSTOM
+}
+
+enum PayableStatus {
+  DRAFT
+  OPEN
+  DUE_SOON
+  OVERDUE
+  PAID
+  CANCELED
+}
+
+enum PayableOriginType {
+  OPERATIONAL_CONTRACT
+  PATRIMONIAL_CONTRACT
+  FISCAL_DOCUMENT
+  MEASUREMENT
+  MANUAL
+}
+
+enum FiscalDocumentStatus {
+  DRAFT
+  RECEIVED
+  CLASSIFIED
+  APPROVED
+  REJECTED
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  TRANSFER
+  ADJUSTMENT
+}
+
+enum MeasurementStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  RETURNED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RETURNED
+}
+
+enum ApprovalActionType {
+  APPROVE
+  REJECT
+  RETURN
+}
+
+enum IntegrationConnector {
+  PROTHEUS_MOCK
+  SAP_PLACEHOLDER
+  CUSTOM_PLACEHOLDER
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum QueueStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+enum CustomFieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  CURRENCY
+  DATE
+  SELECT
+  MULTISELECT
+  BOOLEAN
+  EMAIL
+  PHONE
+  DOCUMENT_ID
+  FILE
+}
+
+enum ConfigScope {
+  GLOBAL
+  TENANT
+}
+
+model Company {
+  id                 String                @id @default(cuid())
+  name               String
+  slug               String                @unique
+  cnpj               String?               @unique
+  plan               String?
+  licenseMetadata    Json?
+  isActive           Boolean               @default(true)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  deletedAt          DateTime?
+  units              Unit[]
+  userRoles          UserRole[]
+  suppliers          Supplier[]
+  costCenters        CostCenter[]
+  products           Product[]
+  warehouses         Warehouse[]
+  stockBalances      StockBalance[]
+  stockMovements     StockMovement[]
+  fiscalDocuments    FiscalDocument[]
+  operationalContracts OperationalContract[]
+  patrimonialContracts PatrimonialContract[]
+  measurements       Measurement[]
+  payables           Payable[]
+  approvalFlows      ApprovalFlow[]
+  auditLogs          AuditLog[]
+  integrationConnections IntegrationConnection[]
+  integrationLogs    IntegrationLog[]
+  syncQueues         SyncQueue[]
+  customFieldDefinitions CustomFieldDefinition[]
+  customFieldValues  CustomFieldValue[]
+  moduleConfigurations ModuleConfiguration[]
+  tenantBrandings    TenantBranding[]
+  statusConfigurations StatusConfiguration[]
+  formLayouts        FormLayout[]
+
+  @@index([isActive])
+}
+
+model Unit {
+  id           String      @id @default(cuid())
+  companyId    String
+  code         String
+  name         String
+  description  String?
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+  company      Company     @relation(fields: [companyId], references: [id])
+  userRoles    UserRole[]
+  warehouses   Warehouse[]
+  stockBalances StockBalance[]
+  stockMovements StockMovement[]
+  fiscalDocuments FiscalDocument[]
+  operationalContracts OperationalContract[]
+  patrimonialContracts PatrimonialContract[]
+  measurements Measurement[]
+  payables     Payable[]
+  approvalFlows ApprovalFlow[]
+  auditLogs    AuditLog[]
+  customFieldValues CustomFieldValue[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  passwordHash String
+  platformRole PlatformRole @default(USER)
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+  userRoles    UserRole[]
+  requestedApprovals ApprovalFlow[] @relation("ApprovalRequester")
+  approvalActions ApprovalAction[]
+  auditLogs    AuditLog[]
+}
+
+model Role {
+  id          String         @id @default(cuid())
+  code        TenantRoleCode @unique
+  label       String
+  description String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  userRoles   UserRole[]
+}
+
+model UserRole {
+  id         String    @id @default(cuid())
+  userId     String
+  companyId  String
+  unitId     String?
+  roleId     String
+  isDefault  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id])
+  company    Company   @relation(fields: [companyId], references: [id])
+  unit       Unit?     @relation(fields: [unitId], references: [id])
+  role       Role      @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, companyId, unitId, roleId])
+  @@index([userId, companyId])
+}
+
+model Supplier {
+  id          String    @id @default(cuid())
+  companyId   String
+  name        String
+  document    String?
+  email       String?
+  phone       String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  company     Company   @relation(fields: [companyId], references: [id])
+  operationalContracts OperationalContract[]
+  patrimonialContracts PatrimonialContract[]
+  fiscalDocuments FiscalDocument[]
+  measurements Measurement[]
+  payables    Payable[]
+
+  @@index([companyId, isActive])
+}
+
+model CostCenter {
+  id          String    @id @default(cuid())
+  companyId   String
+  code        String
+  name        String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  company     Company   @relation(fields: [companyId], references: [id])
+  operationalContracts OperationalContract[]
+  patrimonialContracts PatrimonialContract[]
+
+  @@unique([companyId, code])
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  companyId   String
+  sku         String
+  name        String
+  unitMeasure String
+  minStock    Decimal   @default(0) @db.Decimal(12, 2)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  company     Company   @relation(fields: [companyId], references: [id])
+  stockBalances StockBalance[]
+  stockMovements StockMovement[]
+  fiscalItems FiscalDocumentItem[]
+
+  @@unique([companyId, sku])
+  @@index([companyId, isActive])
+}
+
+model Warehouse {
+  id          String    @id @default(cuid())
+  companyId   String
+  unitId      String
+  code        String
+  name        String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  company     Company   @relation(fields: [companyId], references: [id])
+  unit        Unit      @relation(fields: [unitId], references: [id])
+  stockBalances StockBalance[]
+  stockMovementsSource StockMovement[] @relation("SourceWarehouse")
+  stockMovementsTarget StockMovement[] @relation("TargetWarehouse")
+
+  @@unique([companyId, unitId, code])
+}
+
+model StockBalance {
+  id          String    @id @default(cuid())
+  companyId   String
+  unitId      String
+  warehouseId String?
+  productId   String
+  quantity    Decimal   @default(0) @db.Decimal(14, 2)
+  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now())
+  company     Company   @relation(fields: [companyId], references: [id])
+  unit        Unit      @relation(fields: [unitId], references: [id])
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+  product     Product   @relation(fields: [productId], references: [id])
+
+  @@unique([companyId, unitId, warehouseId, productId])
+  @@index([companyId, unitId])
+}
+
+model StockMovement {
+  id            String            @id @default(cuid())
+  companyId     String
+  unitId        String
+  productId     String
+  movementType  StockMovementType
+  quantity      Decimal           @db.Decimal(14, 2)
+  sourceWarehouseId String?
+  targetWarehouseId String?
+  fiscalDocumentId  String?
+  reference      String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  company        Company           @relation(fields: [companyId], references: [id])
+  unit           Unit              @relation(fields: [unitId], references: [id])
+  product        Product           @relation(fields: [productId], references: [id])
+  sourceWarehouse Warehouse?       @relation("SourceWarehouse", fields: [sourceWarehouseId], references: [id])
+  targetWarehouse Warehouse?       @relation("TargetWarehouse", fields: [targetWarehouseId], references: [id])
+  fiscalDocument FiscalDocument?   @relation(fields: [fiscalDocumentId], references: [id])
+
+  @@index([companyId, unitId, createdAt])
+}
+
+model FiscalDocument {
+  id            String               @id @default(cuid())
+  companyId     String
+  unitId        String
+  supplierId    String?
+  documentNumber String
+  series        String?
+  issueDate     DateTime
+  totalAmount   Decimal              @db.Decimal(14, 2)
+  status        FiscalDocumentStatus @default(DRAFT)
+  notes         String?
+  fileUrl       String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  deletedAt     DateTime?
+  company       Company              @relation(fields: [companyId], references: [id])
+  unit          Unit                 @relation(fields: [unitId], references: [id])
+  supplier      Supplier?            @relation(fields: [supplierId], references: [id])
+  items         FiscalDocumentItem[]
+  stockMovements StockMovement[]
+  measurements  Measurement[]
+  payables      Payable[]
+  operationalContractId String?
+  operationalContract OperationalContract? @relation(fields: [operationalContractId], references: [id])
+  patrimonialContractId String?
+  patrimonialContract PatrimonialContract? @relation(fields: [patrimonialContractId], references: [id])
+
+  @@index([companyId, unitId, status])
+}
+
+model FiscalDocumentItem {
+  id              String      @id @default(cuid())
+  fiscalDocumentId String
+  productId       String?
+  description     String
+  quantity        Decimal     @db.Decimal(14, 2)
+  unitPrice       Decimal     @db.Decimal(14, 2)
+  total           Decimal     @db.Decimal(14, 2)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  fiscalDocument  FiscalDocument @relation(fields: [fiscalDocumentId], references: [id])
+  product         Product?    @relation(fields: [productId], references: [id])
+}
+
+model OperationalContract {
+  id            String         @id @default(cuid())
+  companyId     String
+  unitId        String
+  supplierId    String?
+  costCenterId  String?
+  code          String
+  title         String
+  description   String?
+  status        ContractStatus @default(DRAFT)
+  startDate     DateTime
+  endDate       DateTime?
+  baseAmount    Decimal        @db.Decimal(14, 2)
+  recurrence    RecurrencePeriod
+  adjustmentIndex String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+  company       Company        @relation(fields: [companyId], references: [id])
+  unit          Unit           @relation(fields: [unitId], references: [id])
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id])
+  costCenter    CostCenter?    @relation(fields: [costCenterId], references: [id])
+  fiscalDocuments FiscalDocument[]
+  measurements  Measurement[]
+  payables      Payable[]
+
+  @@unique([companyId, code])
+  @@index([companyId, unitId, status])
+}
+
+model PatrimonialContract {
+  id            String         @id @default(cuid())
+  companyId     String
+  unitId        String
+  supplierId    String?
+  costCenterId  String?
+  code          String
+  title         String
+  description   String?
+  status        ContractStatus @default(DRAFT)
+  startDate     DateTime
+  endDate       DateTime?
+  baseAmount    Decimal        @db.Decimal(14, 2)
+  recurrence    RecurrencePeriod
+  anniversaryDate DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+  company       Company        @relation(fields: [companyId], references: [id])
+  unit          Unit           @relation(fields: [unitId], references: [id])
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id])
+  costCenter    CostCenter?    @relation(fields: [costCenterId], references: [id])
+  payables      Payable[]
+  fiscalDocuments FiscalDocument[]
+
+  @@unique([companyId, code])
+  @@index([companyId, unitId, status])
+}
+
+model Measurement {
+  id             String            @id @default(cuid())
+  companyId      String
+  unitId         String
+  supplierId     String?
+  operationalContractId String?
+  fiscalDocumentId String?
+  code           String
+  description    String?
+  measuredAmount Decimal           @db.Decimal(14, 2)
+  billedAmount   Decimal           @default(0) @db.Decimal(14, 2)
+  paidAmount     Decimal           @default(0) @db.Decimal(14, 2)
+  status         MeasurementStatus @default(DRAFT)
+  referenceDate  DateTime
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  deletedAt      DateTime?
+  company        Company           @relation(fields: [companyId], references: [id])
+  unit           Unit              @relation(fields: [unitId], references: [id])
+  supplier       Supplier?         @relation(fields: [supplierId], references: [id])
+  operationalContract OperationalContract? @relation(fields: [operationalContractId], references: [id])
+  fiscalDocument FiscalDocument?   @relation(fields: [fiscalDocumentId], references: [id])
+  payables       Payable[]
+
+  @@unique([companyId, code])
+  @@index([companyId, unitId, status])
+}
+
+model Payable {
+  id                String            @id @default(cuid())
+  companyId         String
+  unitId            String
+  supplierId        String?
+  code              String
+  description       String
+  amount            Decimal           @db.Decimal(14, 2)
+  dueDate           DateTime
+  forecastPaymentDate DateTime?
+  paymentDate       DateTime?
+  status            PayableStatus     @default(DRAFT)
+  originType        PayableOriginType
+  originReference   String?
+  operationalContractId String?
+  patrimonialContractId String?
+  fiscalDocumentId  String?
+  measurementId     String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+  company           Company           @relation(fields: [companyId], references: [id])
+  unit              Unit              @relation(fields: [unitId], references: [id])
+  supplier          Supplier?         @relation(fields: [supplierId], references: [id])
+  operationalContract OperationalContract? @relation(fields: [operationalContractId], references: [id])
+  patrimonialContract PatrimonialContract? @relation(fields: [patrimonialContractId], references: [id])
+  fiscalDocument    FiscalDocument?   @relation(fields: [fiscalDocumentId], references: [id])
+  measurement       Measurement?      @relation(fields: [measurementId], references: [id])
+
+  @@unique([companyId, code])
+  @@index([companyId, unitId, status, dueDate])
+}
+
+model ApprovalFlow {
+  id              String         @id @default(cuid())
+  companyId       String
+  unitId          String?
+  sourceModule    ModuleKey
+  sourceEntityId  String
+  status          ApprovalStatus @default(PENDING)
+  requestedById   String
+  requestedAt     DateTime       @default(now())
+  decidedAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  company         Company        @relation(fields: [companyId], references: [id])
+  unit            Unit?          @relation(fields: [unitId], references: [id])
+  requestedBy     User           @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  actions         ApprovalAction[]
+
+  @@index([companyId, status, requestedAt])
+}
+
+model ApprovalAction {
+  id            String             @id @default(cuid())
+  approvalFlowId String
+  userId        String
+  action        ApprovalActionType
+  comment       String?
+  createdAt     DateTime           @default(now())
+  approvalFlow  ApprovalFlow       @relation(fields: [approvalFlowId], references: [id])
+  user          User               @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id            String      @id @default(cuid())
+  companyId     String
+  unitId        String?
+  userId        String?
+  module        ModuleKey
+  entity        String
+  entityId      String
+  action        AuditAction
+  fieldChanged  String?
+  oldValues     Json?
+  newValues     Json?
+  observation   String?
+  correlationId String?
+  origin        String?
+  createdAt     DateTime    @default(now())
+  company       Company     @relation(fields: [companyId], references: [id])
+  unit          Unit?       @relation(fields: [unitId], references: [id])
+  user          User?       @relation(fields: [userId], references: [id])
+
+  @@index([companyId, module, createdAt])
+  @@index([correlationId])
+}
+
+model IntegrationConnection {
+  id            String               @id @default(cuid())
+  companyId     String
+  name          String
+  connector     IntegrationConnector
+  status        IntegrationStatus    @default(ACTIVE)
+  settings      Json?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  company       Company              @relation(fields: [companyId], references: [id])
+  logs          IntegrationLog[]
+  syncQueues    SyncQueue[]
+
+  @@index([companyId, connector])
+}
+
+model IntegrationLog {
+  id              String       @id @default(cuid())
+  companyId       String
+  connectionId    String
+  syncQueueId     String?
+  status          QueueStatus
+  requestPayload  Json?
+  responsePayload Json?
+  errorMessage    String?
+  attempt         Int          @default(1)
+  createdAt       DateTime     @default(now())
+  company         Company      @relation(fields: [companyId], references: [id])
+  connection      IntegrationConnection @relation(fields: [connectionId], references: [id])
+  syncQueue       SyncQueue?   @relation(fields: [syncQueueId], references: [id])
+
+  @@index([companyId, createdAt])
+}
+
+model SyncQueue {
+  id             String       @id @default(cuid())
+  companyId      String
+  connectionId   String
+  eventType      String
+  payload        Json
+  status         QueueStatus  @default(PENDING)
+  retryCount     Int          @default(0)
+  maxRetries     Int          @default(3)
+  lastError      String?
+  scheduledAt    DateTime     @default(now())
+  processedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  company        Company      @relation(fields: [companyId], references: [id])
+  connection     IntegrationConnection @relation(fields: [connectionId], references: [id])
+  logs           IntegrationLog[]
+
+  @@index([companyId, status, scheduledAt])
+}
+
+model CustomFieldDefinition {
+  id             String          @id @default(cuid())
+  scope          ConfigScope
+  companyId      String?
+  module         ModuleKey
+  key            String
+  label          String
+  type           CustomFieldType
+  options        Json?
+  isRequired     Boolean         @default(false)
+  isHidden       Boolean         @default(false)
+  isReadOnly     Boolean         @default(false)
+  isFilterable   Boolean         @default(false)
+  isListable     Boolean         @default(false)
+  sortOrder      Int             @default(0)
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  company        Company?        @relation(fields: [companyId], references: [id])
+  values         CustomFieldValue[]
+
+  @@unique([scope, companyId, module, key])
+  @@index([module, isActive])
+}
+
+model CustomFieldValue {
+  id                String      @id @default(cuid())
+  companyId         String
+  unitId            String?
+  customFieldDefinitionId String
+  entityModule      ModuleKey
+  entityId          String
+  value             Json?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  company           Company     @relation(fields: [companyId], references: [id])
+  unit              Unit?       @relation(fields: [unitId], references: [id])
+  definition        CustomFieldDefinition @relation(fields: [customFieldDefinitionId], references: [id])
+
+  @@unique([customFieldDefinitionId, entityId])
+  @@index([companyId, entityModule, entityId])
+}
+
+model ModuleConfiguration {
+  id           String      @id @default(cuid())
+  scope        ConfigScope
+  companyId    String?
+  module       ModuleKey
+  featureKey   String
+  enabled      Boolean     @default(true)
+  settings     Json?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  company      Company?    @relation(fields: [companyId], references: [id])
+
+  @@unique([scope, companyId, module, featureKey])
+}
+
+model TenantBranding {
+  id             String      @id @default(cuid())
+  scope          ConfigScope
+  companyId      String?
+  companyName    String?
+  logoUrl        String?
+  primaryColor   String
+  secondaryColor String
+  darkColor      String
+  neutralColor   String
+  lightBgColor   String
+  isDarkModeEnabled Boolean  @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  company        Company?    @relation(fields: [companyId], references: [id])
+
+  @@unique([scope, companyId])
+}
+
+model StatusConfiguration {
+  id          String      @id @default(cuid())
+  scope       ConfigScope
+  companyId   String?
+  module      ModuleKey
+  key         String
+  label       String
+  color       String?
+  isDefault   Boolean     @default(false)
+  isActive    Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  company     Company?    @relation(fields: [companyId], references: [id])
+
+  @@unique([scope, companyId, module, key])
+}
+
+model FormLayout {
+  id          String      @id @default(cuid())
+  scope       ConfigScope
+  companyId   String?
+  module      ModuleKey
+  name        String
+  isDefault   Boolean     @default(false)
+  config      Json
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  company     Company?    @relation(fields: [companyId], references: [id])
+
+  @@unique([scope, companyId, module, name])
+}
+
